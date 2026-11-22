@@ -1,0 +1,255 @@
+{
+  "subset_name": "student_set (50 images)",
+  "size": 50,
+  "source": "REFUGE train split - full-size images and masks",
+  "g0003": {
+    "id": "g0003",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0010": {
+    "id": "g0010",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0035": {
+    "id": "g0035",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0023": {
+    "id": "g0023",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0009": {
+    "id": "g0009",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0002": {
+    "id": "g0002",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0014": {
+    "id": "g0014",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0021": {
+    "id": "g0021",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0029": {
+    "id": "g0029",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0013": {
+    "id": "g0013",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0034": {
+    "id": "g0034",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0016": {
+    "id": "g0016",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0032": {
+    "id": "g0032",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0008": {
+    "id": "g0008",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0007": {
+    "id": "g0007",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0004": {
+    "id": "g0004",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0017": {
+    "id": "g0017",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0011": {
+    "id": "g0011",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0015": {
+    "id": "g0015",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0018": {
+    "id": "g0018",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0001": {
+    "id": "g0001",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0037": {
+    "id": "g0037",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0036": {
+    "id": "g0036",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0026": {
+    "id": "g0026",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "g0024": {
+    "id": "g0024",
+    "label": 1,
+    "label_text": "glaucoma"
+  },
+  "n0113": {
+    "id": "n0113",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0142": {
+    "id": "n0142",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0023": {
+    "id": "n0023",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0313": {
+    "id": "n0313",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0237": {
+    "id": "n0237",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0349": {
+    "id": "n0349",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0148": {
+    "id": "n0148",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0205": {
+    "id": "n0205",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0022": {
+    "id": "n0022",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0138": {
+    "id": "n0138",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0251": {
+    "id": "n0251",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0360": {
+    "id": "n0360",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0230": {
+    "id": "n0230",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0249": {
+    "id": "n0249",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0163": {
+    "id": "n0163",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0210": {
+    "id": "n0210",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0196": {
+    "id": "n0196",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0074": {
+    "id": "n0074",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0127": {
+    "id": "n0127",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0293": {
+    "id": "n0293",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0345": {
+    "id": "n0345",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0253": {
+    "id": "n0253",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0013": {
+    "id": "n0013",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0223": {
+    "id": "n0223",
+    "label": 0,
+    "label_text": "normal"
+  },
+  "n0206": {
+    "id": "n0206",
+    "label": 0,
+    "label_text": "normal"
+  }
+}
