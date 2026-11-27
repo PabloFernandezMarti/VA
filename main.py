@@ -19,12 +19,16 @@ def carpetaEjecucion(params=None, carpeta_base="ejecuciones"):
     return ruta
 
 
-def guardarImagenesEjecucion(fig1, fig2, fig3, params=None, carpeta_base="ejecuciones"):
+def guardarImagenesEjecucion(fig1, fig2, fig3, fig4=None, fig5=None, params=None, carpeta_base="ejecuciones"):
     carpeta = carpetaEjecucion(params, carpeta_base)
 
     fig1.savefig(os.path.join(carpeta, "1_original_y_canales.png"), dpi=150, bbox_inches="tight")
     fig2.savefig(os.path.join(carpeta, "2_mascaras_y_cierres.png"), dpi=150, bbox_inches="tight")
     fig3.savefig(os.path.join(carpeta, "3_roi_y_comparacion.png"), dpi=150, bbox_inches="tight")
+    if fig4 is not None:
+        fig4.savefig(os.path.join(carpeta, "4_bordes_y_hough.png"), dpi=150, bbox_inches="tight")
+    if fig5 is not None:
+        fig5.savefig(os.path.join(carpeta, "5_hough_vs_gt.png"), dpi=150, bbox_inches="tight")
 
     if params:
         with open(os.path.join(carpeta, "params.txt"), "w") as f:
@@ -34,8 +38,159 @@ def guardarImagenesEjecucion(fig1, fig2, fig3, params=None, carpeta_base="ejecuc
     print(f"Ejecución guardada en: {carpeta}")
 
 
+def extraerBordesBinarios(mascara_bin):
+    """Extrae el borde binario (1 píxel) directamente de una máscara binaria (0/1)."""
+    kernel_3 = np.ones((3, 3), np.uint8)
+    return (mascara_bin - cv2.erode(mascara_bin, kernel_3)).astype(np.uint8)
+
+
+def houghElipse(bordes_bin, escala=0.15, min_ratio=0.6, paso_b=1.5):
+    """
+    Transformada de Hough para elipses (Xie & Ji, 2002) sobre una imagen de bordes binaria.
+    Devuelve (xc, yc, a, b, angulo_grados, votos) en coordenadas de la imagen original.
+    """
+    ys, xs = np.nonzero(bordes_bin)
+    if xs.size < 10:
+        return None
+
+    # Reducir resolución de los puntos de borde para acelerar el acumulador O(N^3)
+    pts = np.unique(np.column_stack((np.round(xs * escala), np.round(ys * escala))), axis=0)
+    if len(pts) > 120:
+        idx = np.linspace(0, len(pts) - 1, 120, dtype=int)
+        pts = pts[idx]
+
+    # Acotar el eje mayor (2a) según el tamaño aproximado del borde detectado
+    span = max(pts[:, 0].max() - pts[:, 0].min(), pts[:, 1].max() - pts[:, 1].min())
+    min_2a = max(6.0, span * 0.55)
+    max_2a = span * 1.15
+
+    px = pts[:, 0]
+    py = pts[:, 1]
+    n = len(pts)
+    mejor_votos = -1
+    mejor_elipse = None
+
+    for i in range(n - 1):
+        dx = px[i + 1:] - px[i]
+        dy = py[i + 1:] - py[i]
+        dist = np.hypot(dx, dy)
+
+        for off in np.where((dist >= min_2a) & (dist <= max_2a))[0]:
+            j = i + 1 + off
+            a = 0.5 * dist[off]
+            x0 = 0.5 * (px[i] + px[j])
+            y0 = 0.5 * (py[i] + py[j])
+            alpha = np.arctan2(py[j] - py[i], px[j] - px[i])
+            ca, sa = np.cos(alpha), np.sin(alpha)
+
+            # Proyectar el resto de puntos de borde sobre los ejes de la elipse candidata
+            rx = px - x0
+            ry = py - y0
+            u = rx * ca + ry * sa
+            v = -rx * sa + ry * ca
+
+            u2_a2 = (u * u) / (a * a)
+            validos = u2_a2 < 0.99
+            if not np.any(validos):
+                continue
+
+            # Despejar el semieje menor b y votar en el acumulador 1D
+            b_vals = np.sqrt((v[validos] * v[validos]) / (1.0 - u2_a2[validos]))
+            b_valid = b_vals[(b_vals >= min_ratio * a) & (b_vals <= a * 1.05)]
+            if b_valid.size == 0:
+                continue
+
+            bins = np.floor(b_valid / paso_b).astype(np.int32)
+            counts = np.bincount(bins)
+            idx_max = int(np.argmax(counts))
+            votos = int(counts[idx_max])
+
+            if votos > mejor_votos:
+                mejor_votos = votos
+                b_est = (idx_max + 0.5) * paso_b
+                mejor_elipse = (
+                    x0 / escala,
+                    y0 / escala,
+                    a / escala,
+                    b_est / escala,
+                    float(np.degrees(alpha)),
+                    votos,
+                )
+
+    return mejor_elipse
+
+
+def dibujarElipse(imagen, elipse, color, grosor=-1):
+    """Dibuja una elipse (xc, yc, a, b, angulo, votos) sobre imagen con cv2.ellipse."""
+    if elipse is None:
+        return
+    xc, yc, a, b, angulo, _ = elipse
+    centro = (int(round(xc)), int(round(yc)))
+    ejes = (max(1, int(round(a))), max(1, int(round(b))))
+    cv2.ellipse(imagen, centro, ejes, angulo, 0, 360, color, grosor)
+
+
+def houghCirculo(bordes_bin, escala=0.2):
+    """
+    Transformada de Hough estándar para círculos (xc, yc, r) sobre bordes binarios.
+    Devuelve (xc, yc, r, votos) en coordenadas de la imagen original.
+    """
+    h, w = bordes_bin.shape
+    nh, nw = max(1, int(round(h * escala))), max(1, int(round(w * escala)))
+    ys, xs = np.nonzero(bordes_bin)
+    if xs.size < 10:
+        return None
+
+    pts = np.unique(
+        np.column_stack((np.round(xs * escala), np.round(ys * escala))).astype(np.int32),
+        axis=0,
+    )
+    px, py = pts[:, 0], pts[:, 1]
+    span = max(px.max() - px.min(), py.max() - py.min())
+    r_min = max(4, int(round(span * 0.25)))
+    r_max = max(r_min + 1, int(round(span * 0.60)))
+
+    thetas = np.linspace(0, 2 * np.pi, 72, endpoint=False)
+    cos_t, sin_t = np.cos(thetas), np.sin(thetas)
+
+    mejor_votos = -1
+    mejor_circulo = None
+
+    for r in range(r_min, r_max + 1):
+        offs = np.unique(
+            np.column_stack((np.round(r * cos_t), np.round(r * sin_t))).astype(np.int32),
+            axis=0,
+        )
+        cx_c = (px[:, None] - offs[None, :, 0]).ravel()
+        cy_c = (py[:, None] - offs[None, :, 1]).ravel()
+        valid = (cx_c >= 0) & (cx_c < nw) & (cy_c >= 0) & (cy_c < nh)
+
+        acc = np.zeros((nh, nw), dtype=np.int32)
+        np.add.at(acc, (cy_c[valid], cx_c[valid]), 1)
+
+        idx = int(np.argmax(acc))
+        cy_m, cx_m = divmod(idx, nw)
+        votos = int(acc[cy_m, cx_m])
+
+        if votos > mejor_votos:
+            mejor_votos = votos
+            mejor_circulo = (cx_m / escala, cy_m / escala, r / escala, votos)
+
+    return mejor_circulo
+
+
+def dibujarCirculo(imagen, circulo, color, grosor=-1):
+    """Dibuja un círculo (xc, yc, r, votos) sobre imagen con cv2.circle."""
+    if circulo is None:
+        return
+    xc, yc, r, _ = circulo
+    centro = (int(round(xc)), int(round(yc)))
+    radio = max(1, int(round(r)))
+    cv2.circle(imagen, centro, radio, color, grosor)
+
+
 # Cargar imagen original
-ruta = './VA_P2_Public_Dataset/Images/g0023.jpg'
+ruta = './VA_P2_Public_Dataset/Images/n0023.jpg'
 img_bgr = cv2.imread(ruta)
 img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
@@ -194,17 +349,152 @@ for ax in axes3:
     ax.axis('off')
 fig3.tight_layout()
 
+# --- Paso 3: Extracción de bordes binarios y Transformada de Hough (círculos y elipses) ---
+bordes_r = extraerBordesBinarios(cierre_r)
+bordes_g = extraerBordesBinarios(cierre_g)
+
+circulo_disco = houghCirculo(bordes_r)
+circulo_copa = houghCirculo(bordes_g)
+
+elipse_disco = houghElipse(bordes_r)
+elipse_copa = houghElipse(bordes_g)
+
+mascara_hough_circ_r = np.zeros_like(cierre_r, dtype=np.uint8)
+mascara_hough_circ_g = np.zeros_like(cierre_g, dtype=np.uint8)
+dibujarCirculo(mascara_hough_circ_r, circulo_disco, 1, grosor=-1)
+dibujarCirculo(mascara_hough_circ_g, circulo_copa, 1, grosor=-1)
+
+mascara_hough_r = np.zeros_like(cierre_r, dtype=np.uint8)
+mascara_hough_g = np.zeros_like(cierre_g, dtype=np.uint8)
+dibujarElipse(mascara_hough_r, elipse_disco, 1, grosor=-1)
+dibujarElipse(mascara_hough_g, elipse_copa, 1, grosor=-1)
+
+if circulo_disco is not None:
+    print(f"Hough Círculo Disco -> centro=({circulo_disco[0]:.1f}, {circulo_disco[1]:.1f}), r={circulo_disco[2]:.1f}, votos={circulo_disco[3]}")
+if circulo_copa is not None:
+    print(f"Hough Círculo Copa  -> centro=({circulo_copa[0]:.1f}, {circulo_copa[1]:.1f}), r={circulo_copa[2]:.1f}, votos={circulo_copa[3]}")
+if elipse_disco is not None:
+    print(f"Hough Elipse Disco  -> centro=({elipse_disco[0]:.1f}, {elipse_disco[1]:.1f}), a={elipse_disco[2]:.1f}, b={elipse_disco[3]:.1f}, ang={elipse_disco[4]:.1f}°, votos={elipse_disco[5]}")
+if elipse_copa is not None:
+    print(f"Hough Elipse Copa   -> centro=({elipse_copa[0]:.1f}, {elipse_copa[1]:.1f}), a={elipse_copa[2]:.1f}, b={elipse_copa[3]:.1f}, ang={elipse_copa[4]:.1f}°, votos={elipse_copa[5]}")
+
+# Ventana 4: Bordes binarios de las máscaras de Otsu y ajuste de elipses con Hough
+bordes_r_vis = cv2.cvtColor(bordes_r * 255, cv2.COLOR_GRAY2RGB)
+dibujarElipse(bordes_r_vis, elipse_disco, (255, 255, 0), grosor=3)  # amarillo
+
+bordes_g_vis = cv2.cvtColor(bordes_g * 255, cv2.COLOR_GRAY2RGB)
+dibujarElipse(bordes_g_vis, elipse_copa, (0, 255, 255), grosor=3)   # cian
+
+fig4, axes4 = plt.subplots(2, 3, figsize=(15, 9), num='Bordes binarios y Hough Elipses (ROI)')
+axes4 = axes4.ravel()
+
+# Fila 1: Disco (R)
+axes4[0].imshow(bordes_r, cmap='gray', vmin=0, vmax=1)
+axes4[0].set_title('Bordes binarios Disco (Otsu R)')
+
+axes4[1].imshow(bordes_r_vis)
+axes4[1].set_title('Hough Elipse sobre bordes Disco')
+
+axes4[2].imshow(mascara_hough_r, cmap='gray', vmin=0, vmax=1)
+axes4[2].set_title('Máscara Elipse Hough (Disco)')
+
+# Fila 2: Copa (G)
+axes4[3].imshow(bordes_g, cmap='gray', vmin=0, vmax=1)
+axes4[3].set_title('Bordes binarios Copa (Otsu G)')
+
+axes4[4].imshow(bordes_g_vis)
+axes4[4].set_title('Hough Elipse sobre bordes Copa')
+
+axes4[5].imshow(mascara_hough_g, cmap='gray', vmin=0, vmax=1)
+axes4[5].set_title('Máscara Elipse Hough (Copa)')
+
+for ax in axes4:
+    ax.axis('off')
+fig4.tight_layout()
+
+# Ventana 5: Comparación final de Hough Círculos (fila 1) y Hough Elipses (fila 2) frente al Ground Truth
+roi_gt_vis = np.zeros_like(roi_gt_disco, dtype=np.uint8)
+roi_gt_vis[roi_gt_disco == 1] = 128
+roi_gt_vis[roi_gt_copa == 1] = 255
+
+hough_circ_vis = np.zeros_like(mascara_hough_circ_r, dtype=np.uint8)
+hough_circ_vis[mascara_hough_circ_r == 1] = 128
+hough_circ_vis[mascara_hough_circ_g == 1] = 255
+
+roi_comparacion_circ = roi_rgb.copy()
+cv2.drawContours(roi_comparacion_circ, contornos_gt_disco, -1, (255, 0, 255), 3)  # magenta: ref. disco
+cv2.drawContours(roi_comparacion_circ, contornos_gt_copa, -1, (0, 255, 0), 3)     # verde: ref. copa
+dibujarCirculo(roi_comparacion_circ, circulo_disco, (255, 255, 0), grosor=3)      # amarillo: Hough círculo disco
+dibujarCirculo(roi_comparacion_circ, circulo_copa, (0, 255, 255), grosor=3)       # cian: Hough círculo copa
+
+hough_vis = np.zeros_like(mascara_hough_r, dtype=np.uint8)
+hough_vis[mascara_hough_r == 1] = 128
+hough_vis[mascara_hough_g == 1] = 255
+
+roi_comparacion_hough = roi_rgb.copy()
+cv2.drawContours(roi_comparacion_hough, contornos_gt_disco, -1, (255, 0, 255), 3)  # magenta: ref. disco
+cv2.drawContours(roi_comparacion_hough, contornos_gt_copa, -1, (0, 255, 0), 3)     # verde: ref. copa
+dibujarElipse(roi_comparacion_hough, elipse_disco, (255, 255, 0), grosor=3)        # amarillo: Hough elipse disco
+dibujarElipse(roi_comparacion_hough, elipse_copa, (0, 255, 255), grosor=3)         # cian: Hough elipse copa
+
+fig5, axes5 = plt.subplots(2, 3, figsize=(18, 11), num='Hough Círculos y Elipses vs Ground Truth (ROI)')
+axes5 = axes5.ravel()
+
+# Fila 1: Hough Círculos
+axes5[0].imshow(roi_gt_vis, cmap='gray', vmin=0, vmax=255)
+axes5[0].set_title('Ground Truth (Disco gris, Copa blanca)')
+
+axes5[1].imshow(hough_circ_vis, cmap='gray', vmin=0, vmax=255)
+axes5[1].set_title('Hough Círculos (Disco gris, Copa blanca)')
+
+axes5[2].imshow(roi_comparacion_circ)
+axes5[2].set_title('Comparación de bordes: Hough Círculos vs GT')
+
+leyenda_circ = [
+    Line2D([0], [0], color=(1, 1, 0), lw=2, label='Hough Círculo Disco'),
+    Line2D([0], [0], color=(0, 1, 1), lw=2, label='Hough Círculo Copa'),
+    Line2D([0], [0], color=(1, 0, 1), lw=2, label='Ref. Disco'),
+    Line2D([0], [0], color=(0, 1, 0), lw=2, label='Ref. Copa'),
+]
+axes5[2].legend(handles=leyenda_circ, loc='upper right', fontsize=9, framealpha=0.8)
+
+# Fila 2: Hough Elipses
+axes5[3].imshow(roi_gt_vis, cmap='gray', vmin=0, vmax=255)
+axes5[3].set_title('Ground Truth (Disco gris, Copa blanca)')
+
+axes5[4].imshow(hough_vis, cmap='gray', vmin=0, vmax=255)
+axes5[4].set_title('Hough Elipses (Disco gris, Copa blanca)')
+
+axes5[5].imshow(roi_comparacion_hough)
+axes5[5].set_title('Comparación de bordes: Hough Elipses vs GT')
+
+leyenda_hough = [
+    Line2D([0], [0], color=(1, 1, 0), lw=2, label='Hough Elipse Disco'),
+    Line2D([0], [0], color=(0, 1, 1), lw=2, label='Hough Elipse Copa'),
+    Line2D([0], [0], color=(1, 0, 1), lw=2, label='Ref. Disco'),
+    Line2D([0], [0], color=(0, 1, 0), lw=2, label='Ref. Copa'),
+]
+axes5[5].legend(handles=leyenda_hough, loc='upper right', fontsize=9, framealpha=0.8)
+
+for ax in axes5:
+    ax.axis('off')
+fig5.tight_layout()
+
 # Guardar resultados antes de mostrar las ventanas
-guardarImagenesEjecucion(fig1, fig2, fig3, params={
+guardarImagenesEjecucion(fig1, fig2, fig3, fig4=fig4, fig5=fig5, params={
     "imagen": nombre_img,
-    "metodo_tag": "otsu2",
-    "metodo": "Otsu 2 etapas en ROI (R sin borde negro -> G dentro del disco)",
+    "metodo_tag": "otsu2_hough",
+    "metodo": "Otsu 2 etapas en ROI + Hough Círculos y Elipses sobre bordes binarios",
     "sigma_gauss": sigma_gauss,
     "umbral_otsu_r": float(umbral_r),
     "umbral_otsu_g": float(umbral_g),
     "cierre": tam_cierre,
     "roi": tam_roi,
     "centroide": (cx, cy),
+    "circulo_disco": tuple(round(v, 1) for v in circulo_disco) if circulo_disco else None,
+    "circulo_copa": tuple(round(v, 1) for v in circulo_copa) if circulo_copa else None,
+    "elipse_disco": tuple(round(v, 1) for v in elipse_disco) if elipse_disco else None,
+    "elipse_copa": tuple(round(v, 1) for v in elipse_copa) if elipse_copa else None,
 })
 
 plt.show()

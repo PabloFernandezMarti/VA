@@ -35,9 +35,9 @@ Aunque ajustando los factores `k_r` y `k_g` el resultado parecía funcionar bien
 
 ---
 
-## 3. Situación actual: pruebas con Otsu y nueva localización de la ROI
+## 3. Umbralización automática con Otsu y nueva localización de la ROI
 
-Para evitar depender de umbrales ajustados a mano, actualmente estamos probando la **umbralización automática mediante el algoritmo de Otsu**.
+Para evitar depender de umbrales ajustados a mano, pasamos a usar la **umbralización automática mediante el algoritmo de Otsu**.
 
 ### Cambio en la detección de la ROI
 Como Otsu divide la imagen en dos clases, aplicarlo sobre la retinografía completa separa el borde negro exterior del resto del ojo, en lugar de separar disco y copa. Por ello se invirtió el orden del flujo y se cambió cómo se calcula la ROI:
@@ -47,16 +47,28 @@ Como Otsu divide la imagen en dos clases, aplicarlo sobre la retinografía compl
 ### Otsu en dos etapas dentro de la ROI
 1. **Primer intento (Otsu independiente en toda la ROI):**
    - Al aplicar Otsu directamente sobre toda la ROI en el canal `G`, la máscara de la copa captaba demasiada región exterior (parte del *rim*). Esto ocurre porque en la ROI hay tres clases (fondo de retina, *rim* y copa), y al dominar el fondo oscuro, Otsu colocaba el umbral entre el fondo y el disco entero en lugar de separar *rim* y copa.
-2. **Enfoque actual en pruebas (Otsu jerárquico en 2 etapas):**
+2. **Solución adoptada (Otsu jerárquico en 2 etapas):**
    - **Etapa 1 — Disco (canal R en la ROI):** Otsu sobre los píxeles válidos de `roi_r` (`roi_r > 10`, excluyendo posibles bordes negros del exterior del ojo) seguido de cierre morfológico para obtener la máscara del disco.
    - **Etapa 2 — Copa (canal G dentro del disco):** Otsu restringido únicamente a los píxeles de `roi_g` que pertenecen al disco segmentado en la etapa 1, de modo que solo queden dos clases (*rim* vs. *copa*), seguido de cierre morfológico.
 
 ---
 
-## 4. Seguimiento de pruebas y próximos pasos
+## 4. Situación actual: Transformada de Hough para elipses sobre bordes binarios
 
-- **Registro de ejecuciones:** cada ejecución de `main.py` guarda automáticamente en `ejecuciones/<imagen>_<parametros>/` las tres figuras generadas (canales y localización de ROI, máscaras/cierres, y comparación de contornos frente al *ground truth*) junto con `params.txt`.
+Incluso tras el cierre morfológico, las máscaras de Otsu conservan muescas provocadas por vasos gruesos y contornos irregulares que se alejan de la forma suave del *ground truth*. Además, el disco y la copa no siempre son círculos perfectos (por ejemplo, en `g0002` tienen una forma claramente elíptica e inclinada), por lo que un ajuste solo a círculos resulta insuficiente.
+
+Para aproximar mejor la geometría real estamos probando:
+1. **Extracción de bordes binarios:** se obtienen los bordes de 1 píxel directamente a partir de las máscaras binarias de Otsu tras el cierre (`mascara - erode(mascara)`), siguiendo la recomendación de trabajar sobre bordes binarios para simplificar la detección y evitar el ruido de textura y vasos de la imagen en escala de grises.
+2. **Transformada de Hough para elipses (`houghElipse`):** se aplica el algoritmo de Xie & Ji (2002) sobre los bordes binarios del disco y de la copa (reduciendo la resolución de los puntos de borde para mantener tiempos bajos) para detectar la elipse `(centro, a, b, ángulo)` con mayor número de votos en cada máscara y generar una segmentación final más cercana al *ground truth*.
+
+---
+
+## 5. Seguimiento de pruebas y próximos pasos
+
+- **Registro de ejecuciones:** cada ejecución de `main.py` guarda automáticamente en `ejecuciones/<imagen>_<metodo_tag>/` las cinco figuras generadas (canales y localización de ROI, máscaras/cierres Otsu, comparación Otsu vs. *ground truth*, bordes binarios con elipses de Hough, y comparación final de Hough frente al *ground truth*) junto con `params.txt`.
 - **Pendiente de abordar:**
-  - Validar el enfoque de Otsu en 2 etapas sobre el conjunto completo de imágenes de desarrollo.
-  - Implementar métricas cuantitativas frente al *ground truth* (localización de disco, segmentación de disco/copa y cálculo del CDR).
-  - Evaluar posibles refinamientos (p. ej. suavizado de contornos, selección de la componente conexa principal o ajuste a elipses) a partir de los errores observados.
+  - Evaluar el pipeline completo (Otsu en 2 etapas + Hough para elipses) sobre todo el conjunto de imágenes de desarrollo.
+  - Implementar métricas cuantitativas frente al *ground truth* (error de localización del disco, Dice/IoU de disco y copa, y error en el cálculo del CDR).
+  - Analizar los casos donde falle el ajuste (p. ej. si conviene filtrar la componente conexa principal antes de extraer bordes o ajustar restricciones de relación de ejes) y documentar comparativas para la memoria.
+
+Importante: mirar si se puede ajustar algo más otsu

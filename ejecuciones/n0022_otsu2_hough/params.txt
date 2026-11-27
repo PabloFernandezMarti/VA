@@ -1,0 +1,13 @@
+imagen: n0022
+metodo_tag: otsu2_hough
+metodo: Otsu 2 etapas en ROI + Hough Círculos y Elipses sobre bordes binarios
+sigma_gauss: 50
+umbral_otsu_r: 141.0
+umbral_otsu_g: 145.0
+cierre: 50
+roi: 600
+centroide: (285, 897)
+circulo_disco: (255.0, 325.0, 135.0, 26)
+circulo_copa: (280.0, 300.0, 75.0, 29)
+elipse_disco: (np.float64(286.7), np.float64(306.7), np.float64(160.1), 105.0, -87.6, 39)
+elipse_copa: (np.float64(296.7), np.float64(303.3), np.float64(91.5), 65.0, 33.1, 34)

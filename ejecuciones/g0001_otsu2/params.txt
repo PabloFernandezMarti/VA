@@ -1,0 +1,9 @@
+imagen: g0001
+metodo_tag: otsu2
+metodo: Otsu 2 etapas en ROI (R sin borde negro -> G dentro del disco)
+sigma_gauss: 50
+umbral_otsu_r: 149.0
+umbral_otsu_g: 137.0
+cierre: 50
+roi: 600
+centroide: (326, 867)
