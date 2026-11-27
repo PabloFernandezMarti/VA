@@ -1,0 +1,8 @@
+imagen: n0023
+metodo: Otsu 2 etapas en ROI (R sin borde negro -> G dentro del disco)
+sigma_gauss: 50
+umbral_otsu_r: 146.0
+umbral_otsu_g: 142.0
+cierre: 50
+roi: 600
+centroide: (283, 1027)

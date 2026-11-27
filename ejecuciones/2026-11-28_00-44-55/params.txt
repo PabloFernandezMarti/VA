@@ -1,0 +1,8 @@
+imagen: n0022
+metodo: Otsu en ROI (localización Gaussiana en G)
+sigma_gauss: 50
+umbral_otsu_r: 138.0
+umbral_otsu_g: 111.0
+cierre: 50
+roi: 600
+centroide: (285, 897)

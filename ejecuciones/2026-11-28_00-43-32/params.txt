@@ -1,0 +1,6 @@
+imagen: n0022
+k_r: 2.5
+k_g: 5.0
+cierre: 50
+roi: 600
+centroide: (291, 912)
