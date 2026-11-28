@@ -39,10 +39,22 @@ Aunque ajustando los factores `k_r` y `k_g` el resultado parecía funcionar bien
 
 Para evitar depender de umbrales ajustados a mano, pasamos a usar la **umbralización automática mediante el algoritmo de Otsu**.
 
-### Cambio en la detección de la ROI
+### Cambio en la detección de la ROI y refinamiento de canales (`G` → `GB` → `GR`)
 Como Otsu divide la imagen en dos clases, aplicarlo sobre la retinografía completa separa el borde negro exterior del resto del ojo, en lugar de separar disco y copa. Por ello se invirtió el orden del flujo y se cambió cómo se calcula la ROI:
 - **Antes:** centroide de la máscara umbralizada (`cv2.moments`).
-- **Ahora:** localización directa del **punto más brillante** sobre el canal `G` tras aplicar un suavizado Gaussiano (`sigma = 50`) para evitar falsos máximos puntuales, recortando ahí la ROI de `600×600` antes de umbralizar.
+- **Ahora:** localización directa del **punto más brillante** tras aplicar un suavizado Gaussiano fuerte (`sigma = 50`) para evitar falsos máximos puntuales, recortando ahí la ROI cuadrada de `600×600` antes de umbralizar.
+
+Al evaluar esta localización sobre las **40 imágenes de desarrollo (`dev`)**, probamos distintos canales de entrada y observamos una limitación clara que nos llevó a refinar la combinación final:
+- **Canal `G` solo:** acierta en `39/40` imágenes (`97.5 %`), pero falla en **`n0230`** (error de `1305.7 px`, cobertura `0 %`), porque esa retinografía tiene un **halo verdoso muy brillante en el borde inferior del campo de visión (FOV)** que supera al disco tras el suavizado.
+- **Combinación `(G + B) / 2`:** mantiene `39/40` (`97.5 %`) y reduce ligeramente el error mediano (`52.0 px`), pero **sigue fallando en `n0230`** porque ese halo del borde inferior también tiene intensidad en el canal azul (`B`).
+- **Combinación `(G + R) / 2` (solución adoptada):** logra **`40/40` (`100.0 %`)** de ROIs conteniendo el disco completo, con un error de centroide medio de `47.6 px` (mediana `51.9 px`, máximo `77.0 px`).
+  - *Motivo físico:* usar solo `R` puede confundirse con zonas rojizas difusas de la retina, mientras que usar solo `G` o `(G + B) / 2` es sensible a halos verdosos/azulados en los bordes de la lente (`n0230`). La media `(G + R) / 2` exige brillo **simultáneo en rojo y verde** (tonalidad **amarillo-naranja brillante**), que corresponde precisamente a la firma de color del disco óptico y rechaza ambos tipos de falso positivo.
+
+| Canal (`Gauss σ=50`, `ROI=600`) | ROIs 100 % disco (`dev`) | Error medio | Error mediano | Error máx. | Fallos |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| `G` | 39/40 (97.5 %) | 80.4 px | 54.8 px | 1305.7 px | `n0230` (halo verdoso en borde) |
+| `(G + B) / 2` | 39/40 (97.5 %) | 79.8 px | 52.0 px | 1351.5 px | `n0230` (halo verdoso-azulado) |
+| **`(G + R) / 2`** | **40/40 (100.0 %)** | **47.6 px** | **51.9 px** | **77.0 px** | **Ninguno** |
 
 ### Otsu en dos etapas dentro de la ROI
 1. **Primer intento (Otsu independiente en toda la ROI):**
@@ -72,3 +84,4 @@ Para aproximar mejor la geometría real estamos probando:
   - Analizar los casos donde falle el ajuste (p. ej. si conviene filtrar la componente conexa principal antes de extraer bordes o ajustar restricciones de relación de ejes) y documentar comparativas para la memoria.
 
 Importante: mirar si se puede ajustar algo más otsu
+Explicar en memoria porque hacemos mascara - erode(mascara) y no canny

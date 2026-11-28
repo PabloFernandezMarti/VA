@@ -1,0 +1,13 @@
+imagen: n0230
+metodo_tag: otsu2_cc_hough
+metodo: Otsu 2 etapas en ROI + componente conexa principal + Hough Círculos y Elipses
+sigma_gauss: 50
+umbral_otsu_r: 146.0
+umbral_otsu_g: 101.0
+cierre: 50
+roi: 600
+centroide: (311, 934)
+circulo_disco: (250.0, 300.0, 155.0, 23)
+circulo_copa: (255.0, 260.0, 55.0, 29)
+elipse_disco: (np.float64(256.7), np.float64(313.3), np.float64(171.4), 155.0, 63.4, 30)
+elipse_copa: (np.float64(293.3), np.float64(306.7), np.float64(104.3), 95.0, 26.6, 26)
